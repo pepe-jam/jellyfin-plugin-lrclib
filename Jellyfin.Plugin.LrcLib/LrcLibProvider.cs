@@ -50,6 +50,22 @@ public class LrcLibProvider : ILyricProvider
 
     private static bool ExcludeAlbumName => LrcLibPlugin.Instance?.Configuration.ExcludeAlbumName ?? false;
 
+    private static bool PreferSyncedLyrics => LrcLibPlugin.Instance?.Configuration.PreferSyncedLyrics ?? true;
+
+    private static bool SkipInstrumentalTracks => LrcLibPlugin.Instance?.Configuration.SkipInstrumentalTracks ?? true;
+
+    private static IReadOnlyList<string> InstrumentalKeywords
+    {
+        get
+        {
+            var raw = LrcLibPlugin.Instance?.Configuration.InstrumentalKeywords ?? "instrumental";
+            return raw
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .ToList();
+        }
+    }
+
     /// <inheritdoc />
     public string Name => LrcLibPlugin.Instance!.Name;
 
@@ -59,6 +75,14 @@ public class LrcLibProvider : ILyricProvider
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        if (SkipInstrumentalTracks && TitleLooksInstrumental(request.SongName))
+        {
+            _logger.LogDebug(
+                "Skipping lyric search for {Song} - title matches an instrumental keyword",
+                request.SongName);
+            return Enumerable.Empty<RemoteLyricInfo>();
+        }
 
         try
         {
@@ -262,18 +286,52 @@ public class LrcLibProvider : ILyricProvider
             results.AddRange(GetRemoteLyrics(item));
         }
 
+        // Kept for cases where PreferSyncedLyrics is turned off and both
+        // formats are being returned per candidate - synced still sorts first.
         var sortedResults = results.OrderByDescending(x => x.Metadata.IsSynced);
 
         return sortedResults;
+    }
+
+    private static bool TitleLooksInstrumental(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return false;
+        }
+
+        foreach (var keyword in InstrumentalKeywords)
+        {
+            if (title.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private List<RemoteLyricInfo> GetRemoteLyrics(LrcLibSearchResponse response)
     {
         var results = new List<RemoteLyricInfo>();
 
-        if (!string.IsNullOrEmpty(response.SyncedLyrics))
+        // Second line of defense: LrcLib's own instrumental flag on the matched record,
+        // independent of whatever the local title string looks like.
+        if (SkipInstrumentalTracks && response.Instrumental == true)
         {
-            var stream = new MemoryStream(Encoding.UTF8.GetBytes(response.SyncedLyrics));
+            _logger.LogDebug(
+                "Skipping result for {Track} - {Artist} - flagged as instrumental by LrcLib",
+                response.TrackName,
+                response.ArtistName);
+            return results;
+        }
+
+        var hasSynced = !string.IsNullOrEmpty(response.SyncedLyrics);
+        var hasPlain = !string.IsNullOrEmpty(response.PlainLyrics);
+
+        if (hasSynced)
+        {
+            var stream = new MemoryStream(Encoding.UTF8.GetBytes(response.SyncedLyrics!));
             results.Add(new RemoteLyricInfo
             {
                 Id = $"{response.Id}_{SyncedSuffix}",
@@ -294,9 +352,12 @@ public class LrcLibProvider : ILyricProvider
             });
         }
 
-        if (!string.IsNullOrEmpty(response.PlainLyrics))
+        // If synced lyrics exist and the preference is on, don't even offer the plain
+        // version as a candidate - this is what actually forces the synced pick, since
+        // downstream auto-selection doesn't reliably respect list order alone.
+        if (hasPlain && (!hasSynced || !PreferSyncedLyrics))
         {
-            var stream = new MemoryStream(Encoding.UTF8.GetBytes(response.PlainLyrics));
+            var stream = new MemoryStream(Encoding.UTF8.GetBytes(response.PlainLyrics!));
             results.Add(new RemoteLyricInfo
             {
                 Id = $"{response.Id}_{PlainSuffix}",
