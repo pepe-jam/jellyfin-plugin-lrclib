@@ -11,7 +11,7 @@
                 "version": "1.0.0.0",
                 "changelog": "Added PreferSyncedLyrics and SkipInstrumentalTracks options.",
                 "targetAbi": "10.9.0.0",
-                "sourceUrl": "https://github.com/pepejam/jellyfin-plugin-lrclib/releases/download/v1.0.0.0/lrclib_1.0.0.0.zip",
+                "sourceUrl": "https://github.com/pepe-jam/jellyfin-plugin-lrclib/releases/download/1.0.0/lrclib_1.0.0.0.zip",
                 "checksum": "a83c75ed125ea6c9bc59ba7db4a38193",
                 "timestamp": "2026-07-30T00:00:00Z"
             }
