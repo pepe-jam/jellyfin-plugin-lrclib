@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en-US">
 <head>
     <title>LrcLib</title>
@@ -24,6 +24,21 @@
                             <input is="emby-checkbox" type="checkbox" id="excludeAlbumName" />
                             <span>Exclude album name from the search parameters.</span>
                         </label>
+                        <br />
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" id="preferSyncedLyrics" />
+                            <span>Prefer synced lyrics (don't offer plain lyrics when a synced version is available).</span>
+                        </label>
+                        <br />
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" id="skipInstrumentalTracks" />
+                            <span>Skip lyric search for tracks that look instrumental.</span>
+                        </label>
+                        <div class="inputContainer" id="instrumentalKeywordsContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="instrumentalKeywords">Instrumental keywords (comma-separated, case-insensitive):</label>
+                            <input is="emby-input" type="text" id="instrumentalKeywords" />
+                            <div class="fieldDescription">Any track whose title contains one of these words will be skipped entirely, no LrcLib request will be made. Example: instrumental, karaoke</div>
+                        </div>
                         <br />
                         <div>
                             <button is="emby-button" type="submit" data-theme="b" class="raised button-submit block">
@@ -51,6 +66,14 @@
 
                     document.querySelector('#excludeArtistName').checked = config.ExcludeArtistName;
                     document.querySelector('#excludeAlbumName').checked = config.ExcludeAlbumName;
+                    document.querySelector('#preferSyncedLyrics').checked = config.PreferSyncedLyrics;
+                    document.querySelector('#skipInstrumentalTracks').checked = config.SkipInstrumentalTracks;
+                    document.querySelector('#instrumentalKeywords').value = config.InstrumentalKeywords;
+
+                    if (!config.SkipInstrumentalTracks) {
+                        document.querySelector('#instrumentalKeywordsContainer').classList.add('hide');
+                    }
+
                     Dashboard.hideLoadingMsg();
                 });
             },
@@ -62,6 +85,9 @@
                     config.UseStrictSearch = document.querySelector('#useStrictSearch').checked;
                     config.ExcludeArtistName = document.querySelector('#excludeArtistName').checked;
                     config.ExcludeAlbumName = document.querySelector('#excludeAlbumName').checked;
+                    config.PreferSyncedLyrics = document.querySelector('#preferSyncedLyrics').checked;
+                    config.SkipInstrumentalTracks = document.querySelector('#skipInstrumentalTracks').checked;
+                    config.InstrumentalKeywords = document.querySelector('#instrumentalKeywords').value;
 
                     ApiClient.updatePluginConfiguration(LrcLibPluginConfiguration.uniquePluginId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
@@ -88,6 +114,15 @@
             else {
                 document.getElementById('excludeArtistNameLabel').classList.remove('hide');
                 document.getElementById('excludeAlbumNameLabel').classList.remove('hide');
+            }
+        });
+
+        document.getElementById('skipInstrumentalTracks').addEventListener('change', function () {
+            if (document.getElementById('skipInstrumentalTracks').checked) {
+                document.getElementById('instrumentalKeywordsContainer').classList.remove('hide');
+            }
+            else {
+                document.getElementById('instrumentalKeywordsContainer').classList.add('hide');
             }
         });
         </script>
